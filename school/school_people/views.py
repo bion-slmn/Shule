@@ -8,7 +8,7 @@ from django.db import IntegrityError
 from django.core.cache import cache
 from django.contrib.auth import authenticate, logout, login
 import time
-from .models import School
+from .models import School, Parent, Student
 # Create your views here.
 
 
@@ -97,7 +97,7 @@ def create_school(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def register_parent(self):
+def register_parent(request):
     '''
     regisster the parent
     '''
@@ -105,22 +105,31 @@ def register_parent(self):
     phone_number = request.data.get('phoneNumber')
     email = request.data.get('email')
     related = request.data.get('relationship')
-    school=request.user.school
-
+    
+    
     if not fullname:
-        return Response('Add fullName', status.HTTP_400_BAD_REQUEST)
+            return Response('Add fullName', status.HTTP_400_BAD_REQUEST)
+    
+    user = request.user
+    school = cache.get(f'user_school_{user.id}')
+    if not school:
+        school=user.school
+        cache.set(f'user_school_{user.id}', school)
+
 
     try:
-        parent = Parent.objects.create(
+        parent, created = Parent.objects.get_or_create(
                                    full_name=fullname,
                                    phone_number=phone_number,
                                    email=email,
                                    relationship=related,
                                    school=school
                                    )
+        if not created:
+            return Response('Parent already exists', status.HTTP_400_BAD_REQUEST)
         return Response(
                         {'Name': fullname, 'id': parent.id},
-                        status.HTTP_400_BAD_REQUEST
+                        status.HTTP_200_OK
                         )
     except IntegrityError:
         return Response('Try again', status.HTTP_400_BAD_REQUEST)
@@ -130,28 +139,31 @@ def register_parent(self):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def admit_student(self):
+def admit_student(request):
     '''
     admit a student to a school
     '''
     user = request.user
     school = user.school
 
-    parent_id = request.data.get('parent_id')
-    fullname = request.data.get('full_name')
-    grade = request.data.get('grade')
+    parent_id = request.data.get('parentId')
+    fullname = request.data.get('fullName')
+    grade = int(request.data.get('grade'))
     
-    parent = Parent.objects.filter(id=parent_id)
+    parent = Parent.objects.filter(id=parent_id).first()
     if not parent:
         return Response('parent doesnt exist', status.HTTP_400_BAD_REQUEST)
 
-    student = Student.objects.create(
+    student, created = Student.objects.get_or_create(
                                      full_name=fullname,
                                      grade=grade,
                                      school=school,
                                      parent=parent
                                      )
+    # create a school fee to be paid for that student
+    if not created:
+        return Response('Student already admitted', status.HTTP_400_BAD_REQUEST)
     return Response(
-                    f'{fullname.upper()} admitted sucessfully',
+                    {'Names':fullname.upper(), 'id': student.id},
                     status.HTTP_200_OK
                     )

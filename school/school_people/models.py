@@ -49,7 +49,7 @@ class Parent(models.Model):
                           editable=False
                           )
     full_name = models.CharField(max_length=50)
-    phone_number = models.CharField(max_length=15, null=True)
+    phone_number = models.CharField(max_length=15, unique=True, null=True)
     relationship = models.CharField('relationship with student',
                                     max_length=50, null=True)
     email = models.EmailField(max_length=254, null=True)
